@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>파쇄기 종이 감지 스마트 모니터링 시스템 (RMS 변동 감지 모드)</title>
+    <!-- 구글 폰트 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <!-- p5.js & p5.sound 라이브러리 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #090d16;
+            --panel-bg: #131c2e;
+            --border-color: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-blue: #3b82f6;
+            --accent-purple: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 24px 16px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: var(--panel-bg);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px #223049;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title h1 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header-title .tag {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+
+        #canvas-holder {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px 20px;
+            background-color: #0a0f1d;
+        }
+
+        #canvas-holder canvas {
+            display: block;
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .controls {
+            padding: 18px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background: var(--panel-bg);
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        button.custom-btn {
+            appearance: none;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 13px 16px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.92rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        button.custom-btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+        }
+
+        .btn-primary.connected {
+            background: linear-gradient(135deg, #059669, #047857);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+        }
+
+        .btn-pause {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
+        }
+
+        .btn-pause:hover {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .btn-pause.paused {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+            50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        }
+
+        .btn-secondary {
+            background: #243048;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+        }
+
+        .btn-secondary:hover {
+            background: #334155;
+        }
+
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(10, 15, 29, 0.6);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            font-size: 0.88rem;
+        }
+
+        .settings-bar label {
+            color: var(--text-sub);
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .settings-bar label span.desc {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider-wrap input[type="range"] {
+            width: 140px;
+            accent-color: #a855f7;
+            cursor: pointer;
+        }
+
+        .slider-val {
+            font-weight: 700;
+            color: #c084fc;
+            min-width: 54px;
+            text-align: right;
+        }
+
+        /* 시리얼 터미널 로그 콘솔 */
+        .terminal-box {
+            margin: 0 22px 18px 22px;
+            background: #080c14;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .terminal-header {
+            background: #101625;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: #64748b;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .terminal-header span b {
+            color: #38bdf8;
+        }
+
+        #terminal-logs {
+            height: 90px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #10b981;
+        }
+
+        .log-line {
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-time {
+            color: #475569;
+        }
+
+        .status-footer {
+            padding: 10px 24px;
+            background: #080c14;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--text-sub);
+        }
+
+        .status-footer span b {
+            color: #cbd5e1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- 상단 헤더 -->
+        <div class="header">
+            <div class="header-title">
+                <span style="font-size: 1.4rem;">🗂️</span>
+                <h1>파쇄기 종이 감지 모니터링</h1>
+                <span class="tag">RMS 흔들림 감지 모드</span>
+            </div>
+            <div id="quick-status" style="font-size: 0.85rem; font-weight: 600; color: #94a3b8;">
+                대기 중
+            </div>
+        </div>
+
+        <!-- p5.js 캔버스 영역 -->
+        <div id="canvas-holder"></div>
+
+        <!-- 컨트롤 버튼 및 옵션 -->
+        <div class="controls">
+            <div class="btn-group">
+                <!-- 시리얼 연결 버튼 -->
+                <button id="connect-btn" class="custom-btn btn-primary" onclick="handleConnectClick()">
+                    <span>🔌</span> <span id="connect-btn-text">시리얼 포트 연결</span>
+                </button>
+
+                <!-- 통 교체 / 일시정지 버튼 -->
+                <button id="toggle-btn" class="custom-btn btn-pause" onclick="handleTogglePause()">
+                    <span>⏸️</span> <span id="toggle-btn-text">감지 일시정지 (통 교체)</span>
+                </button>
+
+                <!-- 사운드 테스트 버튼 -->
+                <button id="test-sound-btn" class="custom-btn btn-secondary" onclick="handleSoundTest()">
+                    <span>🔊</span> <span>소리 테스트</span>
+                </button>
+            </div>
+
+            <!-- 흔들림(RMS) 임계치 슬라이더 -->
+            <div class="settings-bar">
+                <label for="rms-slider">
+                    <span>⚡ 흔들림 감지 민감도 (RMS 임계값)</span>
+                    <span class="desc">값이 낮을수록 작은 흔들림에도 즉시 반응합니다</span>
+                </label>
+                <div class="slider-wrap">
+                    <input type="range" id="rms-slider" min="0.5" max="10.0" step="0.2" value="2.0" oninput="updateRmsThreshold(this.value)">
+                    <span id="rms-display" class="slider-val">2.0 cm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 실시간 시리얼 데이터 수신 콘솔 창 -->
+        <div class="terminal-box">
+            <div class="terminal-header">
+                <span>실시간 시리얼 로그 (Trig: <b>9번</b> / Echo: <b>10번</b> / <b>9600 Baud</b>)</span>
+                <span id="serial-counter" style="color: #64748b;">수신 대기 중</span>
+            </div>
+            <div id="terminal-logs">
+                <div class="log-line">
+                    <span class="log-time">[안내]</span>
+                    <span style="color: #94a3b8;">고정된 센서에서 종이가 통 안으로 들어올 때 거리 흔들림(RMS)을 감지하여 알림음을 재생합니다.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 상태 바 -->
+        <div class="status-footer">
+            <span>감지 방식: <b>RMS 편차 (표준편차 기반 흔들림 검출)</b></span>
+            <span id="audio-engine-state">오디오 엔진: <b>대기 중</b></span>
+        </div>
+    </div>
+
+    <!-- p5.js 및 Web Serial 로직 -->
+    <script>
+        // === 전역 상태 변수 ===
+        let shredSound;
+        let soundLoaded = false;
+        let isMonitoring = true;           // 감지 활성화 상태
+        let currentDistance = null;        // 현재 수신된 거리 (cm)
+        let lastReceivedTimestamp = 0;     // 마지막 데이터 수신 시각 (ms)
+        let isConnected = false;           // 연결 상태 플래그
+        let audioTriggered = false;        // 사운드 트리거 플래그
+        let soundPlayCount = 0;            // 사운드 재생 카운트
+        let packetCount = 0;               // 수신 패킷 수
+
+        // === RMS (거리 변동량/흔들림) 분석 변수 ===
+        const WINDOW_SIZE = 8;             // 최근 샘플 윈도우 크기 (약 0.8초 분량)
+        let distanceWindow = [];           // 최근 거리 값 히스토리
+        let currentRms = 0.0;              // 현재 계산된 RMS 변동량 (cm)
+        let smoothedRms = 0.0;             // 애니메이션용 보간 RMS
+        let rmsThreshold = 2.0;            // 흔들림 감지 임계값 (cm, 슬라이더로 조절)
+        let lastTriggerTime = 0;           // 마지막 소리 재생 시각 (쿨다운용)
+        const TRIGGER_COOLDOWN = 1800;     // 연속 재생 방지 쿨다운 (1.8초)
+
+        // 실시간 미니 파형 그래프 버퍼
+        let waveformHistory = [];
+        const WAVEFORM_LENGTH = 120;       // 화면에 그릴 파형 길이
+
+        // === 순수 Web Serial 객체 (브라우저 내장 API) ===
+        let serialPort = null;
+        let serialReader = null;
+        let keepReading = false;
+        let serialBuffer = "";
+
+        function preload() {
+            soundFormats('mp3', 'wav');
+            shredSound = loadSound('sound.mp3', 
+                () => {
+                    soundLoaded = true;
+                    addLog("✅ sound.mp3 오디오 파일 로드 완료");
+                }, 
+                (err) => {
+                    console.warn("sound.mp3 로드 실패, sound.wav 시도:", err);
+                    shredSound = loadSound('sound.wav', 
+                        () => { soundLoaded = true; addLog("✅ sound.wav 로드 완료"); },
+                        (e) => { addLog("❌ 오디오 파일 로드 실패!"); }
+                    );
+                }
+            );
+        }
+
+        function setup() {
+            const canvas = createCanvas(620, 340);
+            canvas.parent('canvas-holder');
+            textFont('Inter, Noto Sans KR, sans-serif');
+
+            // 파형 버퍼 초기화
+            for (let i = 0; i < WAVEFORM_LENGTH; i++) {
+                waveformHistory.push(0);
+            }
+        }
+
+        function draw() {
+            // 1. 배경 그리기
+            drawBackground();
+
+            // 2. 상단 3개 상태 카드
+            drawHeaderCards();
+
+            // 3. RMS 흔들림 모니터 & 실시간 파형 대시보드
+            drawMotionDashboard();
+
+            // 4. 흔들림(RMS) 트리거 및 소리 재생 검사
+            checkMotionTrigger();
+
+            // 5. DOM 상태 동기화
+            syncDomState();
+
+            // 6. 부드러운 수치 보간
+            smoothedRms = lerp(smoothedRms, currentRms, 0.25);
+        }
+
+        // --- RMS (Root Mean Square) 변동량 계산 ---
+        // 고정 센서에서 평상시에는 거리가 일정하여 RMS가 0에 가깝고, 종이가 투입되면 거리가 요동치며 RMS가 급증함!
+        function calculateRms(newVal) {
+            distanceWindow.push(newVal);
+            if (distanceWindow.length > WINDOW_SIZE) {
+                distanceWindow.shift();
+            }
+
+            if (distanceWindow.length < 3) {
+                return 0.0;
+            }
+
+            // 1. 평균(Mean) 계산
+            let sum = 0;
+            for (let d of distanceWindow) {
+                sum += d;
+            }
+            let mean = sum / distanceWindow.length;
+
+            // 2. 평균 편차 제곱의 평균의 제곱근 (표준편차 / RMS Deviation)
+            let squareDiffSum = 0;
+            for (let d of distanceWindow) {
+                squareDiffSum += Math.pow(d - mean, 2);
+            }
+            let variance = squareDiffSum / distanceWindow.length;
+            let rmsVal = Math.sqrt(variance);
+
+            return rmsVal;
+        }
+
+        // --- 터미널 로그 콘솔 출력 ---
+        function addLog(msg) {
+            let logBox = document.getElementById('terminal-logs');
+            if (!logBox) return;
+
+            let now = new Date();
+            let timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0').slice(0, 2);
+
+            let line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerHTML = `<span class="log-time">[${timeStr}]</span> <span>${msg}</span>`;
+            
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
+
+            if (logBox.children.length > 50) {
+                logBox.removeChild(logBox.children[0]);
+            }
+        }
+
+        // --- 배경 드로잉 ---
+        function drawBackground() {
+            if (!isMonitoring) {
+                background(28, 20, 10);
+                stroke(245, 158, 11, 20);
+                strokeWeight(1);
+                for (let x = -height; x < width + height; x += 24) {
+                    line(x, 0, x + height, height);
+                }
+            } else {
+                background(10, 15, 29);
+            }
+        }
+
+        // --- 상단 상태 카드 ---
+        function drawHeaderCards() {
+            noStroke();
+            let cardY = 14;
+            let cardH = 72;
+            let cardW = (width - 32 - 16) / 3;
+
+            // 1. 시리얼 연결 상태 카드
+            let x1 = 16;
+            drawCardBox(x1, cardY, cardW, cardH);
+            fill(148, 163, 184);
+            textSize(11);
+            textAlign(LEFT, TOP);
+            text("시리얼 연결 상태", x1 + 12, cardY + 12);
+
+            fill(isConnected ? color(16, 185, 129) : color(239, 68, 68));
+            textSize(15);
+            textStyle(BOLD);
+            text(isConnected ? "🟢 연결됨" : "🔴 끊어짐", x1 + 12, cardY + 30);
+
+            fill(100, 116, 139);
+            textSize(10);
+            textStyle(NORMAL);
+            let timeSinceData = (millis() - lastReceivedTimestamp);
+            if (isConnected && lastReceivedTimestamp > 0 && timeSinceData < 2500) {
+                fill(52, 211, 153);
+                text("수신 중 (" + Math.round(timeSinceData) + "ms)", x1 + 12, cardY + 52);
+            } else if (isConnected) {
+                fill(245, 158, 11);
+                text("데이터 대기 중...", x1 + 12, cardY + 52);
+            } else {
+                text("포트 미연결", x1 + 12, cardY + 52);
+            }
+
+            // 2. 시스템 모드 카드
+            let x2 = x1 + cardW + 8;
+            drawCardBox(x2, cardY, cardW, cardH);
+            fill(148, 163, 184);
+            textSize(11);
+            textStyle(NORMAL);
+            text("시스템 모드", x2 + 12, cardY + 12);
+
+            textStyle(BOLD);
+            textSize(15);
+            if (isMonitoring) {
+                fill(192, 132, 252);
+                text("⚡ RMS 변동 감시", x2 + 12, cardY + 30);
+                fill(100, 116, 139);
+                textSize(10);
+                textStyle(NORMAL);
+                text("흔들림 발생 시 트리거", x2 + 12, cardY + 52);
+            } else {
+                fill(245, 158, 11);
+                text("⏸️ 통 교체 모드", x2 + 12, cardY + 30);
+                fill(251, 191, 36);
+                textSize(10);
+                textStyle(NORMAL);
+                text("알림음 일시 차단", x2 + 12, cardY + 52);
+            }
+
+            // 3. 알림음 상태 카드
+            let x3 = x2 + cardW + 8;
+            drawCardBox(x3, cardY, cardW, cardH);
+            fill(148, 163, 184);
+            textSize(11);
+            textStyle(NORMAL);
+            text("알림음 상태", x3 + 12, cardY + 12);
+
+            let isPlaying = shredSound && shredSound.isPlaying();
+            textStyle(BOLD);
+            textSize(15);
+            if (isPlaying) {
+                fill(244, 63, 94);
+                text("🔊 재생 중!", x3 + 12, cardY + 30);
+                fill(251, 113, 133);
+                textSize(10);
+                textStyle(NORMAL);
+                text("종이 투입 흔들림 포착", x3 + 12, cardY + 52);
+            } else {
+                fill(148, 163, 184);
+                text("🔇 대기 중", x3 + 12, cardY + 30);
+                fill(100, 116, 139);
+                textSize(10);
+                textStyle(NORMAL);
+                text("총 " + soundPlayCount + "회 감지됨", x3 + 12, cardY + 52);
+            }
+        }
+
+        function drawCardBox(x, y, w, h) {
+            fill(19, 28, 46, 220);
+            stroke(36, 49, 74);
+            strokeWeight(1);
+            rect(x, y, w, h, 10);
+            noStroke();
+        }
+
+        // --- RMS 흔들림 모니터 & 실시간 파형 대시보드 ---
+        function drawMotionDashboard() {
+            let panelX = 16;
+            let panelY = 96;
+            let panelW = width - 32;
+            let panelH = 228;
+
+            fill(16, 23, 38);
+            stroke(34, 48, 73);
+            strokeWeight(1.5);
+            rect(panelX, panelY, panelW, panelH, 14);
+            noStroke();
+
+            // 섹션 타이틀
+            fill(148, 163, 184);
+            textSize(12);
+            textStyle(BOLD);
+            textAlign(LEFT, TOP);
+            text("실시간 거리 흔들림(RMS 변동량) 감시", panelX + 20, panelY + 16);
+
+            // 현재 고정 거리 값 표시 (작은 보조 텍스트)
+            fill(100, 116, 139);
+            textSize(11);
+            textStyle(NORMAL);
+            let distText = (currentDistance !== null) ? `고정 측정 거리: ${currentDistance.toFixed(1)} cm` : "거리 측정 대기 중";
+            text(distText, panelX + 20, panelY + 34);
+
+            // 메인 대형 수치: RMS 흔들림 값
+            textAlign(RIGHT, TOP);
+            let isShaking = (currentRms >= rmsThreshold && isMonitoring);
+            if (isShaking) {
+                fill(239, 68, 68);
+            } else if (currentRms >= rmsThreshold * 0.6) {
+                fill(245, 158, 11);
+            } else {
+                fill(168, 85, 247);
+            }
+            textSize(40);
+            textStyle(BOLD);
+            text(currentRms.toFixed(2), panelX + panelW - 55, panelY + 10);
+
+            textSize(16);
+            fill(148, 163, 184);
+            text("RMS", panelX + panelW - 15, panelY + 28);
+
+            // 게이지 바 (0.0 ~ 8.0 RMS 범위)
+            let barX = panelX + 20;
+            let barY = panelY + 58;
+            let barW = panelW - 40;
+            let barH = 24;
+            let maxRmsDisplay = 8.0;
+
+            fill(26, 36, 54);
+            rect(barX, barY, barW, barH, 6);
+
+            // 기준 초과 위험 영역 (rmsThreshold 이상) 붉은 배경
+            let threshPixelX = map(constrain(rmsThreshold, 0, maxRmsDisplay), 0, maxRmsDisplay, 0, barW);
+            fill(239, 68, 68, 35);
+            rect(barX + threshPixelX, barY, barW - threshPixelX, barH, 0, 6, 6, 0);
+
+            // 현재 RMS 채우기 게이지
+            let currentPixelW = map(constrain(smoothedRms, 0, maxRmsDisplay), 0, maxRmsDisplay, 0, barW);
+            if (smoothedRms >= rmsThreshold) {
+                fill(239, 68, 68);
+            } else if (smoothedRms >= rmsThreshold * 0.6) {
+                fill(245, 158, 11);
+            } else {
+                fill(168, 85, 247);
+            }
+            rect(barX, barY, currentPixelW, barH, 6);
+
+            // 임계치 기준 마커 선
+            stroke(255, 255, 255, 240);
+            strokeWeight(2);
+            line(barX + threshPixelX, barY - 3, barX + threshPixelX, barY + barH + 3);
+            noStroke();
+
+            fill(255, 255, 255);
+            textSize(10);
+            textAlign(CENTER, BOTTOM);
+            text("트리거 기준: " + rmsThreshold.toFixed(1), barX + threshPixelX, barY - 4);
+
+            // --- 실시간 미니 파형 그래프 (Waveform) ---
+            let graphY = barY + barH + 18;
+            let graphH = 55;
+            fill(10, 15, 26);
+            stroke(30, 42, 64);
+            strokeWeight(1);
+            rect(barX, graphY, barW, graphH, 8);
+
+            // 파형 내부 가이드 라인 (임계치 점선)
+            let graphThreshY = map(constrain(rmsThreshold, 0, maxRmsDisplay), 0, maxRmsDisplay, graphY + graphH - 4, graphY + 6);
+            stroke(239, 68, 68, 120);
+            strokeWeight(1);
+            drawingContext.setLineDash([4, 4]);
+            line(barX + 6, graphThreshY, barX + barW - 6, graphThreshY);
+            drawingContext.setLineDash([]); // 대시 리셋
+
+            // 파형 선 그리기
+            noFill();
+            stroke(isShaking ? color(239, 68, 68) : color(192, 132, 252));
+            strokeWeight(2);
+            beginShape();
+            for (let i = 0; i < waveformHistory.length; i++) {
+                let px = map(i, 0, waveformHistory.length - 1, barX + 6, barX + barW - 6);
+                let py = map(constrain(waveformHistory[i], 0, maxRmsDisplay), 0, maxRmsDisplay, graphY + graphH - 6, graphY + 6);
+                vertex(px, py);
+            }
+            endShape();
+            noStroke();
+
+            // 하단 상태 메시지 박스
+            let statusBoxY = graphY + graphH + 12;
+            let statusBoxH = 48;
+            fill(10, 15, 26);
+            stroke(30, 42, 64);
+            strokeWeight(1);
+            rect(barX, statusBoxY, barW, statusBoxH, 8);
+            noStroke();
+
+            textAlign(LEFT, CENTER);
+            textSize(12);
+            textStyle(BOLD);
+
+            if (!isMonitoring) {
+                fill(251, 191, 36);
+                text("⚠️  통 교체 모드 (일시정지 중) : 흔들림이 발생해도 소리가 울리지 않습니다.", barX + 14, statusBoxY + 24);
+            } else if (!isConnected) {
+                fill(239, 68, 68);
+                text("🔌  아두이노 미연결 : 상단의 [시리얼 포트 연결] 버튼을 눌러주세요.", barX + 14, statusBoxY + 24);
+            } else if (isShaking) {
+                fill(239, 68, 68);
+                text(`🚨  [종이 진입 감지!] 흔들림(RMS: ${currentRms.toFixed(2)})이 기준(${rmsThreshold.toFixed(1)})을 초과했습니다!`, barX + 14, statusBoxY + 24);
+            } else {
+                fill(52, 211, 153);
+                text(`✅  통 내부 안정 상태 (RMS: ${currentRms.toFixed(2)}) - 종이가 떨어져 흔들리면 즉시 감지합니다.`, barX + 14, statusBoxY + 24);
+            }
+        }
+
+        // --- 흔들림(RMS) 트리거 및 사운드 제어 ---
+        function checkMotionTrigger() {
+            if (!isMonitoring) {
+                if (shredSound && shredSound.isPlaying()) {
+                    shredSound.stop();
+                }
+                audioTriggered = false;
+                return;
+            }
+
+            let now = millis();
+            let isShaking = (currentRms >= rmsThreshold);
+
+            if (isShaking) {
+                // 쿨다운(1.8초) 경과 및 중복 재생 방지
+                if (!audioTriggered && (now - lastTriggerTime > TRIGGER_COOLDOWN)) {
+                    if (soundLoaded && shredSound) {
+                        ensureAudioContext();
+                        if (!shredSound.isPlaying()) {
+                            shredSound.play();
+                            soundPlayCount++;
+                            lastTriggerTime = now;
+                            audioTriggered = true;
+                            addLog(`⚡ [흔들림 감지 알림!] RMS: ${currentRms.toFixed(2)} (기준: ${rmsThreshold.toFixed(1)})`);
+                        }
+                    }
+                }
+            } else {
+                // 흔들림이 가라앉으면 트리거 플래그 리셋 (다음 종이 투입 대기)
+                if (currentRms < rmsThreshold * 0.7) {
+                    audioTriggered = false;
+                }
+            }
+        }
+
+        // --- 오디오 컨텍스트 활성화 ---
+        function ensureAudioContext() {
+            try {
+                userStartAudio();
+                let ctx = getAudioContext();
+                if (ctx && ctx.state !== 'running') {
+                    ctx.resume().then(() => updateAudioStatusLabel());
+                } else {
+                    updateAudioStatusLabel();
+                }
+            } catch (e) {
+                console.error("Audio Context 활성화 오류:", e);
+            }
+        }
+
+        function updateAudioStatusLabel() {
+            let label = document.getElementById('audio-engine-state');
+            if (!label) return;
+            let ctx = getAudioContext();
+            if (ctx && ctx.state === 'running') {
+                label.innerHTML = '오디오 엔진: <b style="color: #10b981;">활성화됨 (재생 준비 완료)</b>';
+            } else {
+                label.innerHTML = '오디오 엔진: <b style="color: #f59e0b;">대기 중 (버튼 클릭 필요)</b>';
+            }
+        }
+
+        // --- UI 상태 동기화 ---
+        function syncDomState() {
+            let connBtn = document.getElementById('connect-btn');
+            let connText = document.getElementById('connect-btn-text');
+            let quickStatus = document.getElementById('quick-status');
+
+            if (isConnected) {
+                if (!connBtn.classList.contains('connected')) {
+                    connBtn.classList.add('connected');
+                    connText.innerText = "포트 연결 해제";
+                }
+                quickStatus.innerHTML = '<span style="color: #10b981;">● 모니터링 정상 가동 중</span>';
+            } else {
+                if (connBtn.classList.contains('connected')) {
+                    connBtn.classList.remove('connected');
+                    connText.innerText = "시리얼 포트 연결";
+                }
+                quickStatus.innerHTML = '<span style="color: #ef4444;">● 포트 미연결</span>';
+            }
+
+            if (!isMonitoring) {
+                quickStatus.innerHTML = '<span style="color: #f59e0b;">● 통 교체 중 (일시정지)</span>';
+            }
+        }
+
+        // ==========================================
+        // === 브라우저 표준 Web Serial API 수신 처리 ===
+        // ==========================================
+
+        async function handleConnectClick() {
+            ensureAudioContext();
+
+            if (!("serial" in navigator)) {
+                alert("현재 브라우저는 Web Serial을 지원하지 않습니다!\nChrome, Edge 브라우저를 사용해 주세요.");
+                return;
+            }
+
+            if (isConnected) {
+                await disconnectSerial();
+            } else {
+                await connectSerial();
+            }
+        }
+
+        async function connectSerial() {
+            try {
+                addLog("⏳ 시리얼 포트 요청 중... 브라우저 상단 팝업에서 아두이노를 선택해 주세요.");
+                serialPort = await navigator.serial.requestPort();
+                await serialPort.open({ baudRate: 9600 });
+                isConnected = true;
+                keepReading = true;
+                addLog("🎉 아두이노 연결 성공! (9600 baud 수신 시작)");
+
+                readSerialLoop();
+            } catch (err) {
+                isConnected = false;
+                let errMsg = err.message || err.toString();
+                addLog("⚠️ 연결 실패 또는 취소됨: " + errMsg);
+                if (errMsg.includes('Failed to open') || errMsg.includes('busy')) {
+                    alert("⚠️ 아두이노 IDE 시리얼 모니터를 닫은 후 다시 시도해 주세요!");
+                }
+            }
+        }
+
+        async function disconnectSerial() {
+            keepReading = false;
+            try {
+                if (serialReader) {
+                    await serialReader.cancel();
+                    serialReader = null;
+                }
+                if (serialPort) {
+                    await serialPort.close();
+                    serialPort = null;
+                }
+                isConnected = false;
+                currentDistance = null;
+                currentRms = 0.0;
+                addLog("🔌 시리얼 포트 연결이 해제되었습니다.");
+            } catch (err) {
+                console.error("포트 닫기 오류:", err);
+                isConnected = false;
+            }
+        }
+
+        async function readSerialLoop() {
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = serialPort.readable.pipeTo(textDecoder.writable);
+            serialReader = textDecoder.readable.getReader();
+
+            try {
+                while (keepReading) {
+                    const { value, done } = await serialReader.read();
+                    if (done) break;
+                    if (value) {
+                        serialBuffer += value;
+                        let lines = serialBuffer.split('\n');
+                        serialBuffer = lines.pop();
+
+                        for (let line of lines) {
+                            let cleaned = line.trim();
+                            if (cleaned.length > 0) {
+                                let val = parseFloat(cleaned);
+                                if (!isNaN(val) && val > 0 && val < 500) {
+                                    currentDistance = val;
+                                    lastReceivedTimestamp = millis();
+                                    packetCount++;
+
+                                    // ★ RMS 변동량 계산 및 파형 갱신 ★
+                                    currentRms = calculateRms(val);
+                                    waveformHistory.push(currentRms);
+                                    if (waveformHistory.length > WAVEFORM_LENGTH) {
+                                        waveformHistory.shift();
+                                    }
+
+                                    if (packetCount % 5 === 0) {
+                                        addLog(`◀ 거리: ${val.toFixed(1)} cm | 흔들림(RMS): ${currentRms.toFixed(2)}`);
+                                        let counter = document.getElementById('serial-counter');
+                                        if (counter) counter.innerText = `수신: ${packetCount}건 (RMS: ${currentRms.toFixed(2)})`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (keepReading) {
+                    addLog("⚠️ 데이터 수신 오류: " + err.message);
+                }
+            } finally {
+                if (serialReader) {
+                    serialReader.releaseLock();
+                }
+            }
+        }
+
+        // 2. 통 교체 토글
+        function handleTogglePause() {
+            ensureAudioContext();
+            isMonitoring = !isMonitoring;
+
+            let toggleBtn = document.getElementById('toggle-btn');
+            let toggleText = document.getElementById('toggle-btn-text');
+
+            if (isMonitoring) {
+                toggleBtn.classList.remove('paused');
+                toggleText.innerText = "감지 일시정지 (통 교체)";
+                addLog("▶ 모니터링 재개");
+            } else {
+                toggleBtn.classList.add('paused');
+                toggleText.innerText = "감지 재개 (모니터링 켜기)";
+                if (shredSound && shredSound.isPlaying()) {
+                    shredSound.stop();
+                }
+                addLog("⏸️ 통 교체 모드 (알림음 일시정지)");
+            }
+        }
+
+        // 3. 알림음 수동 테스트
+        function handleSoundTest() {
+            ensureAudioContext();
+            if (soundLoaded && shredSound) {
+                if (shredSound.isPlaying()) shredSound.stop();
+                shredSound.play();
+                addLog("🎵 알림음 수동 테스트 출력");
+            } else {
+                alert("sound.mp3 파일이 아직 준비되지 않았습니다.");
+            }
+        }
+
+        // 4. 흔들림(RMS) 슬라이더 변경
+        function updateRmsThreshold(val) {
+            rmsThreshold = parseFloat(val);
+            document.getElementById('rms-display').innerText = rmsThreshold.toFixed(1) + " cm";
+            addLog(`⚙️ 흔들림 감지 민감도(RMS 임계값) 변경: ${rmsThreshold.toFixed(1)} cm`);
+        }
+    </script>
+</body>
+
+</html>
